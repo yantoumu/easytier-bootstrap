@@ -4,6 +4,16 @@
 
 公开仓库不包含任何实际网络名称、组网密钥、服务器地址、机器清单或 SSH 公钥。加入你的现有网络需要你自己保管的私有 JSON 文件。不要把它上传到 GitHub、粘贴到 Issue 或放进命令参数。
 
+## 短命令启动
+
+下载仓库中的 [zsh.sh](./zsh.sh)，把自己的 `network.private.json` 放在它旁边，在目标 Ubuntu / Debian 服务器进入该目录执行：
+
+```bash
+bash zsh.sh
+```
+
+按提示输入新机器未占用的组网 IPv4 地址。脚本会自动下载已审查的固定版本安装器，安装 EasyTier 并启用 SSH 密码认证。文件名为 zsh.sh，使用 `bash zsh.sh`、`sh zsh.sh` 或 `zsh zsh.sh` 均可；无需安装 zsh。私有配置也可放在用户主目录，找不到时会提示输入路径。
+
 ## 1. 从已有节点导出私有入网文件
 
 在已有节点下载仓库，使用 Python 3.11+ 读取原来的 EasyTier TOML：
