@@ -23,3 +23,10 @@ if [ "$(id -u)" -eq 0 ]; then
 else
   sudo bash "$WORK/install.sh"
 fi
+if [ ! -f /etc/easytier-bootstrap/config.toml ] && [ -t 0 ]; then
+  if [ "$(id -u)" -eq 0 ]; then
+    easytier-join
+  else
+    sudo easytier-join
+  fi
+fi
