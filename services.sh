@@ -15,11 +15,14 @@ fi
 SUPERVISOR=/etc/easytier-bootstrap/supervisord.conf
 case "$ACTION" in
   ssh-start)
-    # Debian's SysV OpenSSH script works without an init daemon.
-    [[ -x /etc/init.d/ssh ]] || { echo 'OpenSSH init script missing.' >&2; exit 1; }
-    /etc/init.d/ssh start
-    /etc/init.d/ssh reload
-    /etc/init.d/ssh status
+    install -d -m 755 /run/sshd
+    if pgrep -x sshd >/dev/null; then
+      pkill -HUP -x sshd
+    else
+      /usr/sbin/sshd -e
+    fi
+    sleep 1
+    pgrep -x sshd >/dev/null
     ;;
   mesh-start)
     [[ -f /etc/easytier-bootstrap/config.toml ]] || { echo 'Run easytier-join first.' >&2; exit 1; }
@@ -33,7 +36,7 @@ case "$ACTION" in
     fi
     ;;
   status)
-    /etc/init.d/ssh status
+    pgrep -x sshd >/dev/null
     supervisorctl -c "$SUPERVISOR" status easytier | grep 'RUNNING' >/dev/null
     ;;
   *) exit 2 ;;

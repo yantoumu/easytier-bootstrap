@@ -110,7 +110,7 @@ else
   curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
     'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/services.sh' -o "$WORK/services.sh"
 fi
-printf '%s  %s\n' '4db59d7e409f871562c777fb39e243cfbc588c3ddc2be0eb2673ddc2feb324d2' "$WORK/services.sh" | sha256sum -c - >/dev/null
+printf '%s  %s\n' 'c7351edf8bd2bce061cc80ecb7f83e4f98aad1d6a2a5a87bd634e42e35c567cf' "$WORK/services.sh" | sha256sum -c - >/dev/null
 if [[ -f "$HERE/supervisord.conf" ]]; then
   cp -- "$HERE/supervisord.conf" "$WORK/supervisord.conf"
 else
@@ -156,7 +156,7 @@ SSH_CONFIG=/etc/ssh/sshd_config
 cp -p "$SSH_CONFIG" "$WORK/sshd_config.backup"
 {
   printf 'PasswordAuthentication yes\nPermitEmptyPasswords no\n'
-  cat "$WORK/sshd_config.backup"
+  grep -vE '^(PasswordAuthentication|PermitEmptyPasswords)[[:space:]]+' "$WORK/sshd_config.backup"
 } > "$WORK/sshd_config.new"
 install -m 600 "$WORK/sshd_config.new" "$SSH_CONFIG"
 if ! /usr/sbin/sshd -t; then
@@ -199,7 +199,7 @@ if [[ -d /run/systemd/system ]]; then
   systemctl daemon-reload
   systemctl is-active --quiet ssh.service
 else
-  /etc/init.d/ssh status
+  pgrep -x sshd >/dev/null
   printf '容器重启后请在启动命令中执行：bash /usr/local/lib/easytier-bootstrap/services.sh ssh-start；已入网时再运行 easytier-join。\n'
 fi
 if [[ -z "$PROFILE" ]]; then
