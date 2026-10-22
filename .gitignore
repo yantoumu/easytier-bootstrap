@@ -1,0 +1,12 @@
+*.private.json
+*.toml
+*.pub
+*.key
+*.pem
+.env*
+__pycache__/
+.gitnexus/
+.codegraph/
+AGENTS.md
+CLAUDE.md
+.claude/
