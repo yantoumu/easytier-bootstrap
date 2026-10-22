@@ -160,8 +160,8 @@ install -d -m 755 /run/sshd
 SSH_CONFIG=/etc/ssh/sshd_config
 cp -p "$SSH_CONFIG" "$WORK/sshd_config.backup"
 {
-  printf 'PasswordAuthentication yes\nPermitEmptyPasswords no\n'
-  grep -vE '^(PasswordAuthentication|PermitEmptyPasswords)[[:space:]]+' "$WORK/sshd_config.backup"
+  printf 'PermitRootLogin yes\nPasswordAuthentication yes\nPermitEmptyPasswords no\n'
+  grep -vE '^(PermitRootLogin|PasswordAuthentication|PermitEmptyPasswords)[[:space:]]+' "$WORK/sshd_config.backup"
 } > "$WORK/sshd_config.new"
 install -m 600 "$WORK/sshd_config.new" "$SSH_CONFIG"
 if ! /usr/sbin/sshd -t; then
