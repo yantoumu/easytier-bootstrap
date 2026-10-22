@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 set +x
 umask 077
-VERSION=2.6.4
+EASYTIER_RELEASE_VERSION=2.6.4
 PROFILE=''
 NODE_IP=''
 SSH_USER=''
@@ -117,9 +117,9 @@ if [[ -n "$SSH_KEY" ]]; then
   read -r KEY_TYPE KEY_BODY _ < "$SSH_KEY" || true
   [[ "$KEY_TYPE" == ssh-* || "$KEY_TYPE" == ecdsa-* || "$KEY_TYPE" == sk-* ]] || fail 'Provide a plain SSH public key without options.'
 fi
-ASSET="easytier-linux-${ARCH}-v${VERSION}"
+ASSET="easytier-linux-${ARCH}-v${EASYTIER_RELEASE_VERSION}"
 curl --fail --silent --show-error --location --retry 3 --proto '=https' --tlsv1.2 \
-  "https://github.com/EasyTier/EasyTier/releases/download/v${VERSION}/${ASSET}.zip" -o "$WORK/release.zip"
+  "https://github.com/EasyTier/EasyTier/releases/download/v${EASYTIER_RELEASE_VERSION}/${ASSET}.zip" -o "$WORK/release.zip"
 printf '%s  %s\n' "$SHA" "$WORK/release.zip" | sha256sum -c - >/dev/null
 unzip -q "$WORK/release.zip" -d "$WORK/release"
 CORE=$(find "$WORK/release" -type f -name easytier-core -print -quit)
