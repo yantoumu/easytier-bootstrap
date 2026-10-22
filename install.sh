@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ubuntu/Debian installer. Network credentials are read only from a private JSON file.
+# Ubuntu/Debian installer. Install first; join a private mesh later if desired.
 set -Eeuo pipefail
 set +x
 umask 077
@@ -11,7 +11,7 @@ SSH_KEY=''
 WORK=''
 usage() {
   cat <<'HELP'
-Usage: sudo bash install.sh --profile /root/network.private.json --ip UNUSED_IPV4
+Usage: sudo bash install.sh [--profile /root/network.private.json --ip UNUSED_IPV4]
        [--ssh-user EXISTING_USER --ssh-key /path/to/key.pub]
 Installs EasyTier 2.6.4 and OpenSSH on Ubuntu/Debian (x86_64/aarch64).
 SSH password authentication is enabled. Existing installs are not overwritten.
@@ -41,7 +41,9 @@ done
 [[ $ID == ubuntu || $ID == debian ]] || fail 'Only Ubuntu and Debian are supported.'
 [[ -d /run/systemd/system ]] || fail 'A running systemd instance is required.'
 [[ -c /dev/net/tun ]] || fail 'TUN is required; enable it in the VM/container host first.'
-[[ -n "$PROFILE" && -f "$PROFILE" && -n "$NODE_IP" ]] || { usage; exit 1; }
+if [[ -n "$PROFILE" || -n "$NODE_IP" ]]; then
+  [[ -n "$PROFILE" && -f "$PROFILE" && -n "$NODE_IP" ]] || { usage; exit 1; }
+fi
 [[ -z "$SSH_USER" && -z "$SSH_KEY" || -n "$SSH_USER" && -f "$SSH_KEY" ]] || fail 'Specify SSH user and public key together.'
 if [[ -n "$SSH_USER" ]]; then
   [[ "$SSH_USER" =~ ^[a-z_][a-z0-9_-]*\$?$ ]] || fail 'Unsupported SSH username.'
@@ -76,7 +78,23 @@ else
     'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/profile.py' -o "$HELPER"
 fi
 printf '%s  %s\n' '834f296968bf03fcede7b19518e47c1778d3f76d9a42b5170117bd435964af22' "$HELPER" | sha256sum -c - >/dev/null
-python3 "$HELPER" render --profile "$PROFILE" --ip "$NODE_IP" --output "$WORK/config.toml"
+if [[ -n "$PROFILE" ]]; then
+  python3 "$HELPER" render --profile "$PROFILE" --ip "$NODE_IP" --output "$WORK/config.toml"
+fi
+if [[ -f "$HERE/join.py" ]]; then
+  cp -- "$HERE/join.py" "$WORK/join.py"
+else
+  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/join.py' -o "$WORK/join.py"
+fi
+printf '%s  %s\n' '3b47bb49f3974b6556e8c66e8c04c85d78d161e6df8f8359ecfed07197bf8581' "$WORK/join.py" | sha256sum -c - >/dev/null
+if [[ -f "$HERE/activate.sh" ]]; then
+  cp -- "$HERE/activate.sh" "$WORK/activate.sh"
+else
+  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/activate.sh' -o "$WORK/activate.sh"
+fi
+printf '%s  %s\n' 'a3cee31c937b386480f74798b20f451a1f49b4e6120622faa5c9bd8ef4267cb1' "$WORK/activate.sh" | sha256sum -c - >/dev/null
 if [[ -n "$SSH_KEY" ]]; then
   ssh-keygen -lf "$SSH_KEY" >/dev/null || fail 'Invalid SSH public key.'
   [[ $(wc -l < "$SSH_KEY") -le 1 ]] || fail 'Provide a single SSH public key.'
@@ -128,7 +146,13 @@ systemctl reload ssh.service
 install -d -m 700 /etc/easytier-bootstrap
 install -m 755 "$CORE" /usr/local/bin/easytier-core
 install -m 755 "$CLI" /usr/local/bin/easytier-cli
-install -m 600 "$WORK/config.toml" "$CONFIG"
+install -d -m 755 /usr/local/lib/easytier-bootstrap
+install -m 644 "$HELPER" /usr/local/lib/easytier-bootstrap/profile.py
+install -m 644 "$WORK/activate.sh" /usr/local/lib/easytier-bootstrap/activate.sh
+install -m 755 "$WORK/join.py" /usr/local/bin/easytier-join
+if [[ -n "$PROFILE" ]]; then
+  install -m 600 "$WORK/config.toml" "$CONFIG"
+fi
 cat > "$UNIT" <<'UNIT'
 [Unit]
 Description=EasyTier private mesh (bootstrap)
@@ -146,21 +170,10 @@ WantedBy=multi-user.target
 UNIT
 chmod 644 "$UNIT"
 systemctl daemon-reload
-systemctl enable --now easytier-bootstrap.service
-# Limit newly added UFW rules to the mesh interface and existing sshd ports.
-if command -v ufw >/dev/null && LC_ALL=C ufw status | grep -q '^Status: active'; then
-  while read -r PORT; do
-    ufw allow in on etvpn0 to any port "$PORT" proto tcp
-  done < <(/usr/sbin/sshd -T | awk '$1 == "port" {print $2}')
-fi
 systemctl is-active --quiet ssh.service
-systemctl is-active --quiet easytier-bootstrap.service
-python3 "$HELPER" health --ip "$NODE_IP" --timeout 60
-ip -4 -o addr show dev etvpn0 | grep -qF " $NODE_IP/" || fail 'Expected VPN interface address is missing.'
-SSH_PORT=$(/usr/sbin/sshd -T | awk '$1 == "port" {print $2; exit}')
-ss -H -ltn | awk -v ip="$NODE_IP" -v port="$SSH_PORT" '
-  $4 == "0.0.0.0:"port || $4 == "*:"port || $4 == ip":"port {found=1}
-  END {exit !found}' || fail 'SSH is not listening on the VPN IPv4 address; review ListenAddress/socket settings.'
-printf '\nEasyTier mesh and SSH listener verified. Both services enabled at boot.\n'
-printf 'Connect using an existing permitted account: ssh -p %s USER@%s\n' "$SSH_PORT" "$NODE_IP"
-printf 'Password login enabled. Use an existing account with a password; account restrictions and firewall rules still apply.\n'
+if [[ -z "$PROFILE" ]]; then
+  printf '\n安装完成：EasyTier 已安装，SSH 已开启密码认证。\n'
+  printf '之后运行 sudo easytier-join 输入组网信息即可连接，无需上传配置文件。\n'
+  exit 0
+fi
+bash /usr/local/lib/easytier-bootstrap/activate.sh "$NODE_IP"

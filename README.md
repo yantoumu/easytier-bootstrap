@@ -4,15 +4,25 @@
 
 公开仓库不包含任何实际网络名称、组网密钥、服务器地址、机器清单或 SSH 公钥。加入你的现有网络需要你自己保管的私有 JSON 文件。不要把它上传到 GitHub、粘贴到 Issue 或放进命令参数。
 
-## 短命令启动
+## 推荐：先安装，后入网（无需上传文件）
 
-下载仓库中的 [zsh.sh](./zsh.sh)，把自己的 `network.private.json` 放在它旁边，在目标 Ubuntu / Debian 服务器进入该目录执行：
+在目标 Ubuntu / Debian 服务器执行：
 
 ```bash
-bash zsh.sh
+curl -fsSLO https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/zsh.sh && bash zsh.sh
 ```
 
-按提示输入新机器未占用的组网 IPv4 地址。脚本会自动下载已审查的固定版本安装器，安装 EasyTier 并启用 SSH 密码认证。文件名为 zsh.sh，使用 `bash zsh.sh`、`sh zsh.sh` 或 `zsh zsh.sh` 均可；无需安装 zsh。私有配置也可放在用户主目录，找不到时会提示输入路径。
+此时只安装 EasyTier 并开启 SSH 密码认证，不需要任何组网配置。EasyTier 服务在完成入网配置后才启动。SSH 使用目标机器已有账号和密码；缺少密码时通过服务器控制台执行 `sudo passwd 用户名`。
+
+准备连接时执行：
+
+```bash
+sudo easytier-join
+```
+
+按提示输入组网名称、隐藏的组网密码、CIDR 网段、引导节点 URI 和本机未占用的组网 IP。配置仅保存在本机受限目录。已有配置时重复执行只重试启动和连接检查，不覆盖身份；错误配置需在本地控制台检查处理。
+
+以下是可选的私有文件导入方式，不是安装前置条件。
 
 ## 1. 从已有节点导出私有入网文件
 
