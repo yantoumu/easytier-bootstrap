@@ -46,8 +46,16 @@ def main():
                 ip = json.loads(line.split('=', 1)[1].strip()).split('/')[0]
                 return subprocess.call(['bash', activation, ip])
         raise ValueError('Existing configuration has no IPv4')
-    ip = sys.argv[1].strip() if len(sys.argv) > 1 else DEFAULT_NODE_IP
-    secret = getpass.getpass(f'请直接粘贴组网密码并回车（本机将使用 IP {ip}）：').strip()
+    args = [a.strip() for a in sys.argv[1:] if a.strip()]
+    ip = DEFAULT_NODE_IP
+    secret = os.environ.get('ET_JOIN_KEY', '').strip()
+    for a in args:
+        if a.count('.') == 3 and all(part.isdigit() for part in a.split('.')):
+            ip = a
+        else:
+            secret = a
+    if not secret:
+        secret = getpass.getpass(f'请直接粘贴组网密码并回车（本机将使用 IP {ip}）：').strip()
     profile = unlock_preset(secret)
     with tempfile.TemporaryDirectory(prefix='easytier-join-') as temp:
         source = Path(temp) / 'network.private.json'

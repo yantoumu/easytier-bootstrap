@@ -96,7 +96,7 @@ else
   curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
     'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/join.py' -o "$WORK/join.py"
 fi
-printf '%s  %s\n' 'c9c63b7ae0cf2d023a07e4c503f07cf72e94b6ff8c08c2408f50b68b6f6082cc' "$WORK/join.py" | sha256sum -c - >/dev/null
+printf '%s  %s\n' '9d25edd9657526018285e3d7bf60204f341bca0a941c6e32aa5910fdfe06a442' "$WORK/join.py" | sha256sum -c - >/dev/null
 if [[ -f "$HERE/activate.sh" ]]; then
   cp -- "$HERE/activate.sh" "$WORK/activate.sh"
 else
