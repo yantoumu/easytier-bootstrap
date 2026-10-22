@@ -14,7 +14,7 @@ usage() {
 Usage: sudo bash install.sh --profile /root/network.private.json --ip UNUSED_IPV4
        [--ssh-user EXISTING_USER --ssh-key /path/to/key.pub]
 Installs EasyTier 2.6.4 and OpenSSH on Ubuntu/Debian (x86_64/aarch64).
-Existing SSH authentication settings are preserved. Existing installs are not overwritten.
+SSH password authentication is enabled. Existing installs are not overwritten.
 HELP
 }
 fail() { printf '%s\n' "$*" >&2; exit 1; }
@@ -110,6 +110,19 @@ fi
 ssh-keygen -A
 install -d -m 755 /run/sshd
 /usr/sbin/sshd -t
+# OpenSSH uses the first global value; prepend before distro/cloud-init Includes.
+SSH_CONFIG=/etc/ssh/sshd_config
+cp -p "$SSH_CONFIG" "$WORK/sshd_config.backup"
+{
+  printf 'PasswordAuthentication yes\nPermitEmptyPasswords no\n'
+  cat "$WORK/sshd_config.backup"
+} > "$WORK/sshd_config.new"
+install -m 600 "$WORK/sshd_config.new" "$SSH_CONFIG"
+if ! /usr/sbin/sshd -t; then
+  cp -p "$WORK/sshd_config.backup" "$SSH_CONFIG"
+  fail 'SSH configuration validation failed; original configuration restored.'
+fi
+/usr/sbin/sshd -T | grep -x 'passwordauthentication yes' >/dev/null || fail 'SSH password authentication did not take effect.'
 systemctl enable --now ssh.service
 systemctl reload ssh.service
 install -d -m 700 /etc/easytier-bootstrap
@@ -150,4 +163,4 @@ ss -H -ltn | awk -v ip="$NODE_IP" -v port="$SSH_PORT" '
   END {exit !found}' || fail 'SSH is not listening on the VPN IPv4 address; review ListenAddress/socket settings.'
 printf '\nEasyTier mesh and SSH listener verified. Both services enabled at boot.\n'
 printf 'Connect using an existing permitted account: ssh -p %s USER@%s\n' "$SSH_PORT" "$NODE_IP"
-printf 'Existing SSH authentication, firewall policies and cloud security groups still apply.\n'
+printf 'Password login enabled. Use an existing account with a password; account restrictions and firewall rules still apply.\n'

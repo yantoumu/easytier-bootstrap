@@ -47,7 +47,7 @@ sudo bash /tmp/easytier-install.sh \
   --ssh-user admin --ssh-key /path/to/id_ed25519.pub
 ```
 
-提供已有用户和单行 OpenSSH 公钥，不传私钥。保留现有 authorized_keys，不创建用户、不修改密码，不开启 root 密码登录。若该用户没有可用密码或密钥，启动 SSH 不代表能登录。已有 `AllowUsers`、`Match`、自定义 `AuthorizedKeysFile` 等规则仍然生效。
+提供已有用户和单行 OpenSSH 公钥，不传私钥。默认开启 SSH 密码认证，使用目标机器已有账号和密码；未设置密码时，在服务器执行 `sudo passwd 用户名`。公钥配置完全可选。保留现有 authorized_keys，不创建用户、不修改密码，不改变 root 登录策略。若该用户没有可用密码或密钥，启动 SSH 不代表能登录。已有 `AllowUsers`、`Match`、自定义 `AuthorizedKeysFile` 等规则仍然生效。
 
 本脚本用于新机器安装，发现已有安装、运行中的 EasyTier 或已有二进制会停止，不覆盖现网配置。失败后可能留下部分安装结果；请通过本地/云控制台检查原因，再决定是否清理后重新安装。
 
@@ -61,7 +61,7 @@ ssh admin@NEW_UNUSED_IP
 
 安装结束前检查两个服务运行、指定虚拟 IP、至少一个远端组网节点以及 SSH 的 IPv4 监听。最多等待约 60 秒连接组网，失败返回非零状态，已安装服务仍保留便于排查；服务日志可能含私有地址或配置错误详情，请不要公开粘贴。
 
-SSH 端口沿用现有配置，安装结束会输出端口。保留原有认证与监听策略，若 SSH 只监听某个物理网卡地址，脚本会失败提示，需调整后重试。
+SSH 端口沿用现有配置，安装结束会输出端口。脚本明确设置 `PasswordAuthentication yes` 和 `PermitEmptyPasswords no`，其他认证限制与监听策略保留；已有 `Match` 或多因素 `AuthenticationMethods` 规则可能仍限制密码登录。若 SSH 只监听某个物理网卡地址，脚本会失败提示，需调整后重试。
 
 - 若 UFW 已启用，只在 `etvpn0` 虚拟接口放行已有 SSH 端口，不新增公网放行规则，也不关闭防火墙。
 - 若没有启用防火墙，OpenSSH 默认可能监听全部网卡，公网可达性取决于已有规则与云安全组；本脚本不把 SSH 强制限制为仅组网可用。
