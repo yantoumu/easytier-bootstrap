@@ -55,11 +55,9 @@ case $(uname -m) in
 esac
 CONFIG=/etc/easytier-bootstrap/config.toml
 UNIT=/etc/systemd/system/easytier-bootstrap.service
+ALREADY_JOINED=0
 if [[ -e "$CONFIG" ]]; then
-  fail 'Existing mesh config found; run easytier-join directly.'
-fi
-if pgrep -x easytier-core >/dev/null; then
-  fail 'Another EasyTier instance is running. Resolve it before installation.'
+  ALREADY_JOINED=1
 fi
 if [[ -e /usr/local/bin/easytier-core && ! -f "$UNIT" ]]; then
   fail 'Unmanaged EasyTier binaries already exist; refusing to overwrite.'
