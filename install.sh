@@ -55,8 +55,8 @@ case $(uname -m) in
 esac
 CONFIG=/etc/easytier-bootstrap/config.toml
 UNIT=/etc/systemd/system/easytier-bootstrap.service
-if [[ -e "$CONFIG" || -e "$UNIT" ]]; then
-  fail 'Existing setup found; inspect or remove it manually before installing.'
+if [[ -e "$CONFIG" ]]; then
+  fail 'Existing mesh config found; run easytier-join directly.'
 fi
 if pgrep -x easytier-core >/dev/null; then
   fail 'Another EasyTier instance is running. Resolve it before installation.'
@@ -96,7 +96,7 @@ else
   curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
     'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/join.py' -o "$WORK/join.py"
 fi
-printf '%s  %s\n' '3b47bb49f3974b6556e8c66e8c04c85d78d161e6df8f8359ecfed07197bf8581' "$WORK/join.py" | sha256sum -c - >/dev/null
+printf '%s  %s\n' 'c9c63b7ae0cf2d023a07e4c503f07cf72e94b6ff8c08c2408f50b68b6f6082cc' "$WORK/join.py" | sha256sum -c - >/dev/null
 if [[ -f "$HERE/activate.sh" ]]; then
   cp -- "$HERE/activate.sh" "$WORK/activate.sh"
 else
@@ -124,15 +124,20 @@ if [[ -n "$SSH_KEY" ]]; then
   read -r KEY_TYPE KEY_BODY _ < "$SSH_KEY" || true
   [[ "$KEY_TYPE" == ssh-* || "$KEY_TYPE" == ecdsa-* || "$KEY_TYPE" == sk-* ]] || fail 'Provide a plain SSH public key without options.'
 fi
-ASSET="easytier-linux-${ARCH}-v${EASYTIER_RELEASE_VERSION}"
-curl --fail --silent --show-error --location --retry 3 --proto '=https' --tlsv1.2 \
-  "https://github.com/EasyTier/EasyTier/releases/download/v${EASYTIER_RELEASE_VERSION}/${ASSET}.zip" -o "$WORK/release.zip"
-printf '%s  %s\n' "$SHA" "$WORK/release.zip" | sha256sum -c - >/dev/null
-unzip -q "$WORK/release.zip" -d "$WORK/release"
-CORE=$(find "$WORK/release" -type f -name easytier-core -print -quit)
-CLI=$(find "$WORK/release" -type f -name easytier-cli -print -quit)
-[[ -n "$CORE" && -n "$CLI" ]] || fail 'Release binaries missing.'
-chmod 755 "$CORE" "$CLI"
+if [[ -x /usr/local/bin/easytier-core && -x /usr/local/bin/easytier-cli ]] && /usr/local/bin/easytier-core --version | grep -q " ${EASYTIER_RELEASE_VERSION}-"; then
+  CORE=/usr/local/bin/easytier-core
+  CLI=/usr/local/bin/easytier-cli
+else
+  ASSET="easytier-linux-${ARCH}-v${EASYTIER_RELEASE_VERSION}"
+  curl --fail --silent --show-error --location --retry 3 --proto '=https' --tlsv1.2 \
+    "https://github.com/EasyTier/EasyTier/releases/download/v${EASYTIER_RELEASE_VERSION}/${ASSET}.zip" -o "$WORK/release.zip"
+  printf '%s  %s\n' "$SHA" "$WORK/release.zip" | sha256sum -c - >/dev/null
+  unzip -q "$WORK/release.zip" -d "$WORK/release"
+  CORE=$(find "$WORK/release" -type f -name easytier-core -print -quit)
+  CLI=$(find "$WORK/release" -type f -name easytier-cli -print -quit)
+  [[ -n "$CORE" && -n "$CLI" ]] || fail 'Release binaries missing.'
+  chmod 755 "$CORE" "$CLI"
+fi
 "$CORE" --version
 if [[ -n "$SSH_USER" ]]; then
   USER_HOME=$(getent passwd "$SSH_USER" | cut -d: -f6)
@@ -169,8 +174,10 @@ install -m 644 "$WORK/services.sh" /usr/local/lib/easytier-bootstrap/services.sh
 bash /usr/local/lib/easytier-bootstrap/services.sh ssh-start
 install -d -m 700 /etc/easytier-bootstrap
 install -m 600 "$WORK/supervisord.conf" /etc/easytier-bootstrap/supervisord.conf
-install -m 755 "$CORE" /usr/local/bin/easytier-core
-install -m 755 "$CLI" /usr/local/bin/easytier-cli
+if [[ "$CORE" != /usr/local/bin/easytier-core ]]; then
+  install -m 755 "$CORE" /usr/local/bin/easytier-core
+  install -m 755 "$CLI" /usr/local/bin/easytier-cli
+fi
 install -d -m 755 /usr/local/lib/easytier-bootstrap
 install -m 644 "$HELPER" /usr/local/lib/easytier-bootstrap/profile.py
 install -m 644 "$WORK/activate.sh" /usr/local/lib/easytier-bootstrap/activate.sh
