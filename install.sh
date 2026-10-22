@@ -65,10 +65,17 @@ if [[ -e /usr/local/bin/easytier-core && ! -f "$UNIT" ]]; then
   fail 'Unmanaged EasyTier binaries already exist; refusing to overwrite.'
 fi
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y ca-certificates curl unzip python3 openssh-server iproute2 procps
+PACKAGES=(ca-certificates curl unzip python3 openssh-server iproute2 procps)
 if [[ ! -d /run/systemd/system ]]; then
-  apt-get install -y supervisor
+  PACKAGES+=(supervisor)
+fi
+MISSING=()
+for PACKAGE in "${PACKAGES[@]}"; do
+  dpkg-query -W -f='${Status}' "$PACKAGE" 2>/dev/null | grep -qx 'install ok installed' || MISSING+=("$PACKAGE")
+done
+if ((${#MISSING[@]})); then
+  apt-get -o Acquire::Retries=3 update
+  apt-get -o Acquire::Retries=3 install -y "${MISSING[@]}"
 fi
 WORK=$(mktemp -d)
 HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
