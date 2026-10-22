@@ -1,6 +1,6 @@
 # EasyTier + SSH 一键安装
 
-面向 Ubuntu 20.04+ / Debian 11+，支持 x86_64、ARM64，需要 root、systemd 和 `/dev/net/tun`。固定安装 EasyTier 2.6.4，校验官方发布包 SHA-256，安装 OpenSSH 并设置两个服务开机启动。
+面向 Ubuntu 20.04+ / Debian 11+，支持 x86_64、ARM64，需要 root 和 `/dev/net/tun`；支持 systemd 主机及 tini 容器。固定安装 EasyTier 2.6.4，校验官方发布包 SHA-256，安装 OpenSSH；systemd 主机配置开机启动，容器使用 SysV SSH 启动脚本和独立 Supervisor 管理进程。
 
 公开仓库不包含任何实际网络名称、组网密钥、服务器地址、机器清单或 SSH 公钥。加入你的现有网络需要你自己保管的私有 JSON 文件。不要把它上传到 GitHub、粘贴到 Issue 或放进命令参数。
 
@@ -74,7 +74,7 @@ sudo bash /tmp/easytier-install.sh \
 ## 3. 状态和登录
 
 ```bash
-systemctl status easytier-bootstrap ssh
+bash /usr/local/lib/easytier-bootstrap/services.sh status
 sudo easytier-cli peer
 ssh admin@NEW_UNUSED_IP
 ```
@@ -92,3 +92,17 @@ SSH 端口沿用现有配置，安装结束会输出端口。脚本明确设置 
 ## 验证范围
 
 开发机为 macOS。已进行语法检查、配置导出/生成探针、官方配置契约比对以及调用链与对抗式审查；尚未在全新 Ubuntu/Debian 主机执行完整 root 安装，也未验证你的实际私有网络凭据。首次部署请从可用的本地/云控制台执行，并以脚本最终检查和实际 SSH 登录为准。
+
+## tini / 非 systemd 容器
+
+安装会自动选择容器模式，不再要求 systemd。入网仍需宿主提供 `/dev/net/tun` 及 `NET_ADMIN` 等必要权限；设备文件存在不等于具备权限。容器内 root 不能自行授予宿主能力。
+
+Supervisor 日志和套接字位于 root 专用目录，不开放 HTTP 管理端口。容器销毁会丢失未持久化数据；容器重启后，在平台启动脚本中执行：
+
+```bash
+bash /usr/local/lib/easytier-bootstrap/services.sh ssh-start
+# 已配置组网后执行，复用原配置：
+easytier-join
+```
+
+容器 SSH 若需从外网访问，还需要平台映射 SSH 端口；本安装器无法修改宿主端口映射。容器适配已做静态调用链与配置检查，尚未在用户的目标容器上实测。

@@ -39,7 +39,6 @@ done
 [[ -f /etc/os-release ]] || fail 'Missing OS identification.'
 . /etc/os-release
 [[ $ID == ubuntu || $ID == debian ]] || fail 'Only Ubuntu and Debian are supported.'
-[[ -d /run/systemd/system ]] || fail 'A running systemd instance is required.'
 [[ -c /dev/net/tun ]] || fail 'TUN is required; enable it in the VM/container host first.'
 if [[ -n "$PROFILE" || -n "$NODE_IP" ]]; then
   [[ -n "$PROFILE" && -f "$PROFILE" && -n "$NODE_IP" ]] || { usage; exit 1; }
@@ -68,6 +67,9 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y ca-certificates curl unzip python3 openssh-server iproute2 procps
+if [[ ! -d /run/systemd/system ]]; then
+  apt-get install -y supervisor
+fi
 WORK=$(mktemp -d)
 HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 HELPER="$WORK/profile.py"
@@ -94,7 +96,21 @@ else
   curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
     'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/activate.sh' -o "$WORK/activate.sh"
 fi
-printf '%s  %s\n' 'a3cee31c937b386480f74798b20f451a1f49b4e6120622faa5c9bd8ef4267cb1' "$WORK/activate.sh" | sha256sum -c - >/dev/null
+printf '%s  %s\n' '1aa779f474c7f62cb9ecc6961140fa94056b1000f429878d0f483aa8da656e83' "$WORK/activate.sh" | sha256sum -c - >/dev/null
+if [[ -f "$HERE/services.sh" ]]; then
+  cp -- "$HERE/services.sh" "$WORK/services.sh"
+else
+  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/services.sh' -o "$WORK/services.sh"
+fi
+printf '%s  %s\n' '4db59d7e409f871562c777fb39e243cfbc588c3ddc2be0eb2673ddc2feb324d2' "$WORK/services.sh" | sha256sum -c - >/dev/null
+if [[ -f "$HERE/supervisord.conf" ]]; then
+  cp -- "$HERE/supervisord.conf" "$WORK/supervisord.conf"
+else
+  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    'https://raw.githubusercontent.com/yantoumu/easytier-bootstrap/main/supervisord.conf' -o "$WORK/supervisord.conf"
+fi
+printf '%s  %s\n' '35789d5c3a26efad399bafb4ac019a6b0f98486f51176b24e33f253f1084361a' "$WORK/supervisord.conf" | sha256sum -c - >/dev/null
 if [[ -n "$SSH_KEY" ]]; then
   ssh-keygen -lf "$SSH_KEY" >/dev/null || fail 'Invalid SSH public key.'
   [[ $(wc -l < "$SSH_KEY") -le 1 ]] || fail 'Provide a single SSH public key.'
@@ -141,9 +157,11 @@ if ! /usr/sbin/sshd -t; then
   fail 'SSH configuration validation failed; original configuration restored.'
 fi
 /usr/sbin/sshd -T | grep -x 'passwordauthentication yes' >/dev/null || fail 'SSH password authentication did not take effect.'
-systemctl enable --now ssh.service
-systemctl reload ssh.service
+install -d -m 755 /usr/local/lib/easytier-bootstrap
+install -m 644 "$WORK/services.sh" /usr/local/lib/easytier-bootstrap/services.sh
+bash /usr/local/lib/easytier-bootstrap/services.sh ssh-start
 install -d -m 700 /etc/easytier-bootstrap
+install -m 600 "$WORK/supervisord.conf" /etc/easytier-bootstrap/supervisord.conf
 install -m 755 "$CORE" /usr/local/bin/easytier-core
 install -m 755 "$CLI" /usr/local/bin/easytier-cli
 install -d -m 755 /usr/local/lib/easytier-bootstrap
@@ -153,6 +171,7 @@ install -m 755 "$WORK/join.py" /usr/local/bin/easytier-join
 if [[ -n "$PROFILE" ]]; then
   install -m 600 "$WORK/config.toml" "$CONFIG"
 fi
+install -d -m 755 /etc/systemd/system
 cat > "$UNIT" <<'UNIT'
 [Unit]
 Description=EasyTier private mesh (bootstrap)
@@ -169,8 +188,13 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 UNIT
 chmod 644 "$UNIT"
-systemctl daemon-reload
-systemctl is-active --quiet ssh.service
+if [[ -d /run/systemd/system ]]; then
+  systemctl daemon-reload
+  systemctl is-active --quiet ssh.service
+else
+  /etc/init.d/ssh status
+  printf '容器重启后请在启动命令中执行：bash /usr/local/lib/easytier-bootstrap/services.sh ssh-start；已入网时再运行 easytier-join。\n'
+fi
 if [[ -z "$PROFILE" ]]; then
   printf '\n安装完成：EasyTier 已安装，SSH 已开启密码认证。\n'
   printf '之后运行 sudo easytier-join 输入组网信息即可连接，无需上传配置文件。\n'
